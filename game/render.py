@@ -15,27 +15,59 @@ def draw_background(game) -> None:
         game.canvas.create_oval(base_x + 150, 220, base_x + 620, 500, fill="#77848f", width=0)
         game.canvas.create_oval(base_x + 510, 215, base_x + 1020, 510, fill="#6f7a85", width=0)
 
-    # Rough skyline silhouette to avoid flat/vector look.
+    # Rough skyline silhouette with warmer tones (not gray-heavy).
     skyline_y = 300
-    bx = -((game.hills_offset * 0.7) % 220)
+    # Keep skyline static (no parallax motion) and less saturated.
+    bx = -40
+    skyline_palette = ["#5f6f7f", "#5f7770", "#6c6a7a", "#6d7268", "#647078"]
+    trim_palette = ["#7a8896", "#7e908a", "#89829a", "#8b8f84", "#7f8b93"]
+    color_idx = 0
     while bx < game.WIDTH + 220:
         w = 70 + int((bx * 0.13) % 40)
         h = 70 + int((bx * 0.21) % 90)
         x1 = bx
         x2 = bx + w
         y1 = skyline_y - h
-        game.canvas.create_rectangle(x1, y1, x2, skyline_y, fill="#656f78", outline="")
-        game.canvas.create_rectangle(x1 + 8, y1 + 10, x2 - 8, y1 + 14, fill="#7f8b95", width=0)
+        base = skyline_palette[color_idx % len(skyline_palette)]
+        trim = trim_palette[color_idx % len(trim_palette)]
+        game.canvas.create_rectangle(x1, y1, x2, skyline_y, fill=base, outline="")
+        game.canvas.create_rectangle(x1 + 8, y1 + 10, x2 - 8, y1 + 14, fill=trim, width=0)
         bx += w + 16
+        color_idx += 1
+
+    # Visual road profile: downhill segments, then flat again.
+    def road_profile_y(world_x: float) -> float:
+        p = world_x % 1260.0
+        if p < 260.0:
+            return game.GROUND_Y
+        if p < 560.0:
+            return game.GROUND_Y + (p - 260.0) * 0.06  # downhill
+        if p < 860.0:
+            return game.GROUND_Y + 18.0  # flat lower segment
+        if p < 1120.0:
+            return game.GROUND_Y + 18.0 - (p - 860.0) * 0.069  # rise to flat
+        return game.GROUND_Y
+
+    # Paint over road top so profile is visible without changing gameplay collisions.
+    road_points: list[float] = []
+    x = 0
+    while x <= game.WIDTH:
+        wx = x + game.road_offset
+        road_points.extend((x, road_profile_y(wx)))
+        x += 24
+    road_points.extend((game.WIDTH, game.HEIGHT, 0, game.HEIGHT))
+    game.canvas.create_polygon(road_points, fill="#646c61", outline="")
 
     stripe_w = 92
     x = -game.road_offset
     while x < game.WIDTH:
+        wx = x + game.road_offset + 24
+        stripe_y = road_profile_y(wx)
         game.canvas.create_rectangle(
             x,
-            game.GROUND_Y + 36,
+            stripe_y + 36,
             x + 48,
-            game.GROUND_Y + 44,
+            stripe_y + 44,
             fill="#a8ab9a",
             width=0,
         )
@@ -108,10 +140,15 @@ def draw_player(game) -> None:
     roll_rad = math.radians(game.flip_angle if not game.on_ground else 0.0)
     yaw_rad = math.radians(game.board_yaw_angle if not game.on_ground else 0.0)
     yaw_face = max(0.30, abs(math.cos(yaw_rad)))
-    thickness = 5.2 + 1.6 * abs(math.cos(roll_rad))
-    tilt = 4 * math.sin(roll_rad)
+    # Kickflip is a roll around the deck's long axis:
+    # keep deck length, vary only visible thickness/underside.
+    roll_face = max(0.10, abs(math.cos(roll_rad)))
+    thickness = 1.6 + 6.2 * roll_face
+    tilt = 0.0
     underside = math.cos(roll_rad) < 0
     half_len = deck_len * yaw_face / 2
+    # Small "flick drop" makes kickflip read more natural.
+    board_center_y += 7.0 * (1.0 - abs(math.cos(roll_rad)))
 
     deck_x1 = board_center_x - half_len
     deck_x2 = board_center_x + half_len
@@ -204,7 +241,46 @@ def draw_player(game) -> None:
 
 def draw_hud(game) -> None:
     # HUD stays minimal to avoid cluttering animation readability.
-    controls = "Up: Jump | Left: Slow (air: Backflip) | Right: Speed Up (air: 180) | Down (air): Kickflip | R: Restart"
+    logo_cx = game.WIDTH - 74
+    logo_cy = 76
+
+    def make_board_points(angle_deg: float) -> list[float]:
+        half_len = 30
+        half_w = 6
+        local = [
+            (-half_len + 6, -half_w),
+            (half_len - 6, -half_w),
+            (half_len, 0),
+            (half_len - 6, half_w),
+            (-half_len + 6, half_w),
+            (-half_len, 0),
+        ]
+        rad = math.radians(angle_deg)
+        c = math.cos(rad)
+        s = math.sin(rad)
+        pts: list[float] = []
+        for lx, ly in local:
+            x = logo_cx + lx * c - ly * s
+            y = logo_cy + lx * s + ly * c
+            pts.extend((x, y))
+        return pts
+
+    game.canvas.create_polygon(make_board_points(40), fill="#2f3f56", outline="#1f2a39", width=2)
+    game.canvas.create_polygon(make_board_points(-40), fill="#3f5f84", outline="#1f2a39", width=2)
+    game.canvas.create_oval(logo_cx - 6, logo_cy - 6, logo_cx + 6, logo_cy + 6, fill="#1f2a39", width=0)
+    game.canvas.create_text(
+        game.WIDTH - 18,
+        18,
+        text="Skate Rush",
+        fill="#1f2d3a",
+        font=("Segoe UI", 12, "bold"),
+        anchor="ne",
+    )
+
+    controls = (
+        "Up: Jump | Left: Souza (air: Backflip) | Right: Brositni Souza (air: 180) "
+        "| Down (air): Kickflip | R: Restart"
+    )
     game.canvas.create_text(18, 18, text=controls, fill="#1f2d3a", font=("Segoe UI", 11), anchor="nw")
 
     if game.trick_label:

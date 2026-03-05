@@ -29,7 +29,7 @@ class SkateGame:
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
-        self.root.title("Soft Skate Run")
+        self.root.title("Skate Rush")
         self.root.resizable(False, False)
 
         self.canvas = tk.Canvas(
@@ -162,17 +162,12 @@ class SkateGame:
         return max(target, value - amount)
 
     def _update_speed(self, dt: float) -> None:
-        # Ground acceleration/deceleration profile.
-        if self.left_pressed and not self.right_pressed:
-            self.scroll_speed -= self.SLOW_ACCEL * dt
-        elif self.right_pressed and not self.left_pressed:
-            self.scroll_speed += self.FAST_ACCEL * dt
-        else:
-            self.scroll_speed = self._approach(
-                self.scroll_speed,
-                self.BASE_SCROLL_SPEED,
-                self.RETURN_ACCEL * dt,
-            )
+        # Keep cruise speed stable; left/right are used for ground manuals.
+        self.scroll_speed = self._approach(
+            self.scroll_speed,
+            self.BASE_SCROLL_SPEED,
+            self.RETURN_ACCEL * dt,
+        )
 
         self.scroll_speed = max(self.MIN_SCROLL_SPEED, min(self.MAX_SCROLL_SPEED, self.scroll_speed))
 

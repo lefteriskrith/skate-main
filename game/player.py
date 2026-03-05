@@ -11,8 +11,7 @@ def on_jump(game, _event) -> None:
 
 def on_down_press(game, _event) -> None:
     # Air-only trick: kickflip.
-    if not game.on_ground and game.running:
-        # Allow down-trigger even if another trick was queued; this makes input reliable.
+    if not game.on_ground and game.running and not game.air_trick_used:
         game.air_trick_used = True
         game.trick_label = "Kickflip"
         game.flip_remaining = 360.0
@@ -20,7 +19,7 @@ def on_down_press(game, _event) -> None:
 
 
 def on_left_press(game, _event) -> None:
-    # Left acts as brake on ground, backflip trigger in air.
+    # Left triggers manual on ground, backflip trigger in air.
     if not game.on_ground and game.running and not game.air_trick_used:
         game.air_trick_used = True
         game.trick_label = "Backflip"
@@ -36,12 +35,14 @@ def on_left_release(game, _event) -> None:
 
 
 def on_right_press(game, _event) -> None:
-    # Right acts as accelerate on ground, 180 trigger in air.
+    # Right triggers nose manual on ground, 180 trigger in air.
     if not game.on_ground and game.running and not game.air_trick_used:
         game.air_trick_used = True
         game.trick_label = "180 Turn"
         game.board_yaw_remaining = 180.0
-        game.rider_yaw_remaining = 180.0
+        # Keep rider forward-facing to avoid crossed-leg pose during the 180.
+        game.rider_yaw_angle = 0.0
+        game.rider_yaw_remaining = 0.0
         game.player_vy -= 70.0
         return
     game.right_pressed = True
@@ -98,6 +99,23 @@ def update_player(game, dt: float) -> None:
     game.rider_pitch_angle, game.rider_pitch_remaining = advance_angle(
         game.rider_pitch_angle, game.rider_pitch_remaining, game.BACKFLIP_RATE, dt
     )
+
+    if game.on_ground:
+        # Ground stance: left=manual (nose up), right=nose manual (nose down).
+        if game.left_pressed and not game.right_pressed:
+            target_board_pitch = -13.0
+        elif game.right_pressed and not game.left_pressed:
+            target_board_pitch = 13.0
+        else:
+            target_board_pitch = 0.0
+
+        # Manual pose should override any leftover air-rotation target.
+        game.board_pitch_remaining = 0.0
+        game.rider_pitch_remaining = 0.0
+
+        follow = min(1.0, 9.5 * dt)
+        game.board_pitch_angle += (target_board_pitch - game.board_pitch_angle) * follow
+        game.rider_pitch_angle += (target_board_pitch * 0.62 - game.rider_pitch_angle) * follow
 
 
 def rotate_point(x: float, y: float, cx: float, cy: float, angle_deg: float) -> tuple[float, float]:
