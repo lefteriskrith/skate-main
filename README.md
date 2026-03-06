@@ -8,6 +8,16 @@ A small Python `tkinter` skate game prototype with simple tricks, obstacle dodgi
 python skate_game.py
 ```
 
+## Syntax Check (`py_compile`)
+
+```powershell
+# Compile all Python files to bytecode (syntax validation only).
+python -m py_compile `
+  skate_game.py `
+  game\__init__.py game\config.py game\core.py game\main.py `
+  game\obstacles.py game\player.py game\render.py
+```
+
 ## Controls
 
 - `Up`: jump

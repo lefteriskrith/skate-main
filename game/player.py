@@ -2,6 +2,7 @@ import math
 
 
 def on_jump(game, _event) -> None:
+    # Ground-only jump; resets trick state for the new airtime window.
     if game.on_ground and game.running:
         game.on_ground = False
         game.player_vy = game.JUMP_VELOCITY
@@ -14,7 +15,9 @@ def on_down_press(game, _event) -> None:
     if not game.on_ground and game.running and not game.air_trick_used:
         game.air_trick_used = True
         game.trick_label = "Kickflip"
+        # Full spin around long board axis.
         game.flip_remaining = 360.0
+        # Small upward pop to sell the trick timing.
         game.player_vy -= 110.0
 
 
@@ -31,6 +34,7 @@ def on_left_press(game, _event) -> None:
 
 
 def on_left_release(game, _event) -> None:
+    # End manual input state.
     game.left_pressed = False
 
 
@@ -49,6 +53,7 @@ def on_right_press(game, _event) -> None:
 
 
 def on_right_release(game, _event) -> None:
+    # End manual input state.
     game.right_pressed = False
 
 
@@ -63,9 +68,11 @@ def advance_angle(angle: float, remaining: float, rate: float, dt: float) -> tup
 def update_player(game, dt: float) -> None:
     # Vertical motion and trick state are updated in one place to avoid drift.
     if not game.on_ground:
+        # Integrate vertical velocity.
         game.player_vy += game.GRAVITY * dt
         game.player_y += game.player_vy * dt
 
+        # Land and hard-reset all airborne trick rotations.
         floor_y = game.GROUND_Y - game.PLAYER_H
         if game.player_y >= floor_y:
             game.player_y = floor_y
@@ -84,6 +91,7 @@ def update_player(game, dt: float) -> None:
             game.rider_pitch_angle = 0.0
             game.rider_pitch_remaining = 0.0
 
+    # Advance all active trick rotations with constant angular speeds.
     game.flip_angle, game.flip_remaining = advance_angle(
         game.flip_angle, game.flip_remaining, game.KICKFLIP_RATE, dt
     )
@@ -113,6 +121,7 @@ def update_player(game, dt: float) -> None:
         game.board_pitch_remaining = 0.0
         game.rider_pitch_remaining = 0.0
 
+        # Smoothly blend current pose to target stance.
         follow = min(1.0, 9.5 * dt)
         game.board_pitch_angle += (target_board_pitch - game.board_pitch_angle) * follow
         game.rider_pitch_angle += (target_board_pitch * 0.62 - game.rider_pitch_angle) * follow

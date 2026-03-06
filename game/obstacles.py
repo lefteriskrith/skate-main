@@ -2,6 +2,7 @@ import random
 
 
 def spawn_initial_obstacles(game) -> None:
+    # Fill the first screen span so gameplay starts immediately.
     for _ in range(5):
         spawn_obstacle(game)
 
@@ -37,13 +38,17 @@ def update_obstacles(game, dt: float) -> None:
     # Obstacles are recycled by spawn/remove to keep list size bounded.
     shift = game.scroll_speed * dt
     for obstacle in game.obstacles:
+        # Move left based on world speed.
         obstacle["x"] -= shift
 
+        # Score once when obstacle fully passes player.
         if obstacle["passed"] == 0.0 and obstacle["x"] + obstacle["w"] < game.PLAYER_X:
             obstacle["passed"] = 1.0
             game.score += 1
 
+    # Remove elements that are fully off-screen.
     game.obstacles = [o for o in game.obstacles if o["x"] + o["w"] > -30]
 
+    # Keep a stable pool size so spacing remains predictable.
     while len(game.obstacles) < 6:
         spawn_obstacle(game)

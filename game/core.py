@@ -7,6 +7,7 @@ from . import obstacles, player, render
 
 class SkateGame:
     """Main orchestrator: owns state and runs the frame loop."""
+    # Mirror constants from config for shorter access inside methods.
     WIDTH = cfg.WIDTH
     HEIGHT = cfg.HEIGHT
     GROUND_Y = cfg.GROUND_Y
@@ -28,10 +29,12 @@ class SkateGame:
     BACKFLIP_RATE = cfg.BACKFLIP_RATE
 
     def __init__(self, root: tk.Tk) -> None:
+        # Keep references to root window and basic window setup.
         self.root = root
         self.root.title("Skate Rush")
         self.root.resizable(False, False)
 
+        # Main draw surface.
         self.canvas = tk.Canvas(
             root,
             width=self.WIDTH,
@@ -41,6 +44,7 @@ class SkateGame:
         )
         self.canvas.pack()
 
+        # Bottom status line (score + speed).
         self.status = tk.StringVar(value="Score: 0")
         self.status_label = tk.Label(
             root,
@@ -52,14 +56,17 @@ class SkateGame:
         )
         self.status_label.pack(fill="x")
 
+        # Global run/score state.
         self.running = True
         self.score = 0
 
+        # Player physics state.
         self.scroll_speed = self.BASE_SCROLL_SPEED
         self.player_y = self.GROUND_Y - self.PLAYER_H
         self.player_vy = 0.0
         self.on_ground = True
 
+        # Trick animation state.
         self.flip_angle = 0.0
         self.flip_remaining = 0.0
         self.board_yaw_angle = 0.0
@@ -73,20 +80,25 @@ class SkateGame:
         self.air_trick_used = False
         self.trick_label = ""
 
+        # Ground input flags (manual stance).
         self.left_pressed = False
         self.right_pressed = False
 
+        # Parallax offsets for background layers.
         self.road_offset = 0.0
         self.hills_offset = 0.0
         self.grime_offset = 0.0
 
+        # Dynamic obstacle pool.
         self.obstacles: list[dict[str, float | str | int]] = []
         self.next_obstacle_x = self.WIDTH + 180
 
+        # Prepare first batch of obstacles and controls.
         obstacles.spawn_initial_obstacles(self)
         self._bind_keys()
         self.root.focus_force()
 
+        # Kick off frame timing.
         self.last_time = time.perf_counter()
         self._tick()
 
@@ -102,6 +114,7 @@ class SkateGame:
         self.root.bind_all("<R>", self._reset)
 
     def _on_jump(self, event: tk.Event) -> None:
+        # Delegate to player module to keep responsibilities separated.
         player.on_jump(self, event)
 
     def _on_down_press(self, event: tk.Event) -> None:
@@ -157,6 +170,7 @@ class SkateGame:
         self.status.set("Score: 0")
 
     def _approach(self, value: float, target: float, amount: float) -> float:
+        # Move `value` toward `target` by at most `amount`.
         if value < target:
             return min(target, value + amount)
         return max(target, value - amount)
@@ -178,12 +192,14 @@ class SkateGame:
         self.grime_offset = (self.grime_offset + self.scroll_speed * 0.35 * dt) % 340
 
     def _check_collision(self) -> bool:
+        # Slightly inset player rectangle for fairer collisions.
         px1 = self.PLAYER_X + 6
         py1 = self.player_y + 6
         px2 = self.PLAYER_X + self.PLAYER_W - 8
         py2 = self.player_y + self.PLAYER_H - 4
 
         for obstacle in self.obstacles:
+            # Build obstacle bounds in world coordinates.
             ox1 = obstacle["x"]
             oy1 = self.GROUND_Y - obstacle["h"]
             ox2 = obstacle["x"] + obstacle["w"]
@@ -206,6 +222,7 @@ class SkateGame:
         return False
 
     def _tick(self) -> None:
+        # Measure real elapsed time since last frame.
         now = time.perf_counter()
         dt = now - self.last_time
         self.last_time = now
@@ -213,6 +230,7 @@ class SkateGame:
         dt = max(1 / 120, min(1 / 20, dt))
 
         if self.running:
+            # Update gameplay simulation first.
             self._update_speed(dt)
             player.update_player(self, dt)
             obstacles.update_obstacles(self, dt)
@@ -220,12 +238,15 @@ class SkateGame:
             if self._check_collision():
                 self.running = False
 
+        # Refresh text status even after crash.
         self.status.set(f"Score: {self.score}   Speed: {int(self.scroll_speed)}")
 
+        # Full redraw each frame.
         self.canvas.delete("all")
         render.draw_background(self)
         render.draw_obstacles(self)
         render.draw_player(self)
         render.draw_hud(self)
 
+        # Schedule next frame.
         self.root.after(cfg.FRAME_DELAY_MS, self._tick)

@@ -5,11 +5,13 @@ from .player import rotate_point
 
 def draw_background(game) -> None:
     # Layered sky + hills + road stripes.
+    # Base color bands (sky, midground, ground).
     game.canvas.create_rectangle(0, 0, game.WIDTH, game.HEIGHT, fill="#c9d3db", width=0)
     game.canvas.create_rectangle(0, 270, game.WIDTH, game.HEIGHT, fill="#9eaab3", width=0)
     game.canvas.create_rectangle(0, game.GROUND_Y, game.WIDTH, game.HEIGHT, fill="#6f7569", width=0)
 
     x_shift = -game.hills_offset
+    # Repeat hill clusters across three wrapped regions.
     for base_x in (x_shift - game.WIDTH, x_shift, x_shift + game.WIDTH):
         game.canvas.create_oval(base_x - 230, 210, base_x + 210, 490, fill="#7f8f9b", width=0)
         game.canvas.create_oval(base_x + 150, 220, base_x + 620, 500, fill="#77848f", width=0)
@@ -23,6 +25,7 @@ def draw_background(game) -> None:
     trim_palette = ["#7a8896", "#7e908a", "#89829a", "#8b8f84", "#7f8b93"]
     color_idx = 0
     while bx < game.WIDTH + 220:
+        # Procedural building width/height variation.
         w = 70 + int((bx * 0.13) % 40)
         h = 70 + int((bx * 0.21) % 90)
         x1 = bx
@@ -52,6 +55,7 @@ def draw_background(game) -> None:
     road_points: list[float] = []
     x = 0
     while x <= game.WIDTH:
+        # Convert screen x to world x so moving offset affects profile.
         wx = x + game.road_offset
         road_points.extend((x, road_profile_y(wx)))
         x += 24
@@ -61,6 +65,7 @@ def draw_background(game) -> None:
     stripe_w = 92
     x = -game.road_offset
     while x < game.WIDTH:
+        # Stripe y follows current road profile to stay grounded visually.
         wx = x + game.road_offset + 24
         stripe_y = road_profile_y(wx)
         game.canvas.create_rectangle(
@@ -76,6 +81,7 @@ def draw_background(game) -> None:
     # Dirt/stain strips for a grimier environment.
     grime_x = -game.grime_offset
     while grime_x < game.WIDTH:
+        # Two overlapping blobs create a rough stain.
         game.canvas.create_oval(
             grime_x + 10,
             game.GROUND_Y + 10,
@@ -113,6 +119,7 @@ def draw_obstacles(game) -> None:
 
         game.canvas.create_rectangle(x1 - 2, y2 - 2, x2 + 2, y2 + 4, fill="#4b5147", width=0)
         if kind == "stairs":
+            # Draw descending steps instead of one block.
             steps = int(obstacle.get("steps", 5))
             step_w = max(18, (x2 - x1) / steps)
             for i in range(steps):
@@ -123,6 +130,7 @@ def draw_obstacles(game) -> None:
                 game.canvas.create_rectangle(sx1, sy1, sx2, y2, fill="#5e6369", outline="#454a50", width=1)
                 game.canvas.create_line(sx1 + 3, sy1 + 5, sx2 - 3, sy1 + 5, fill="#777d84", width=1)
         else:
+            # Draw classic box obstacle with top highlight.
             game.canvas.create_rectangle(x1, y1, x2, y2, fill="#575d64", outline="#43484f", width=2)
             game.canvas.create_rectangle(x1 + 5, y1 + 6, x2 - 5, y1 + 11, fill="#757c85", width=0)
 
@@ -139,6 +147,7 @@ def draw_player(game) -> None:
 
     roll_rad = math.radians(game.flip_angle if not game.on_ground else 0.0)
     yaw_rad = math.radians(game.board_yaw_angle if not game.on_ground else 0.0)
+    # Yaw controls visible board length (foreshortening).
     yaw_face = max(0.30, abs(math.cos(yaw_rad)))
     # Kickflip is a roll around the deck's long axis:
     # keep deck length, vary only visible thickness/underside.
@@ -186,6 +195,7 @@ def draw_player(game) -> None:
         game.canvas.create_oval(rtx - wheel_r, rty - wheel_r, rtx + wheel_r, rty + wheel_r, fill="#253547", width=0)
 
     rider_dir = -1 if math.cos(math.radians(game.rider_yaw_angle)) < 0 else 1
+    # Build a simple stick-figure skeleton, then rotate it by rider pitch.
     left_ankle_x = deck_x1 + max(14, (deck_x2 - deck_x1) * 0.30)
     right_ankle_x = deck_x2 - max(14, (deck_x2 - deck_x1) * 0.30)
     ankle_y = deck_top - 2
@@ -245,6 +255,7 @@ def draw_hud(game) -> None:
     logo_cy = 76
 
     def make_board_points(angle_deg: float) -> list[float]:
+        # Build a tiny board shape and rotate it around logo center.
         half_len = 30
         half_w = 6
         local = [
