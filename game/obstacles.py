@@ -13,13 +13,15 @@ def spawn_obstacle(game) -> None:
     kind = "stairs" if kind_roll < 0.22 else "block"
     if kind == "stairs":
         width = random.randint(120, 190)
-        height = random.randint(42, 74)
+        height = random.randint(38, 66)
         steps = random.randint(4, 6)
+        # Give stairs a bit more room so they read clearly before contact.
+        gap = random.randint(game.OBSTACLE_MIN_GAP + 80, game.OBSTACLE_MAX_GAP + 140)
     else:
         width = random.randint(30, 60)
-        height = random.randint(34, 82)
+        height = random.randint(32, 72)
         steps = 0
-    gap = random.randint(game.OBSTACLE_MIN_GAP, game.OBSTACLE_MAX_GAP)
+        gap = random.randint(game.OBSTACLE_MIN_GAP, game.OBSTACLE_MAX_GAP)
 
     game.obstacles.append(
         {
@@ -41,10 +43,9 @@ def update_obstacles(game, dt: float) -> None:
         # Move left based on world speed.
         obstacle["x"] -= shift
 
-        # Score once when obstacle fully passes player.
+        # Mark once when obstacle fully passes player (reserved for future use).
         if obstacle["passed"] == 0.0 and obstacle["x"] + obstacle["w"] < game.PLAYER_X:
             obstacle["passed"] = 1.0
-            game.score += 1
 
     # Remove elements that are fully off-screen.
     game.obstacles = [o for o in game.obstacles if o["x"] + o["w"] > -30]

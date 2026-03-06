@@ -7,14 +7,20 @@ def on_jump(game, _event) -> None:
         game.on_ground = False
         game.player_vy = game.JUMP_VELOCITY
         game.air_trick_used = False
+        game.air_kickflip_used = False
+        game.air_turn180_used = False
+        game.air_backflip_used = False
+        game.manual_score_timer = 0.0
+        game.score += 1
         game.trick_label = ""
 
 
 def on_down_press(game, _event) -> None:
     # Air-only trick: kickflip.
-    if not game.on_ground and game.running and not game.air_trick_used:
-        game.air_trick_used = True
-        game.trick_label = "Kickflip"
+    if not game.on_ground and game.running and not game.air_kickflip_used:
+        game.air_kickflip_used = True
+        game.score += 5
+        game.trick_label = "360 Flip" if game.air_turn180_used else "Kickflip"
         # Full spin around long board axis.
         game.flip_remaining = 360.0
         # Small upward pop to sell the trick timing.
@@ -23,8 +29,8 @@ def on_down_press(game, _event) -> None:
 
 def on_left_press(game, _event) -> None:
     # Left triggers manual on ground, backflip trigger in air.
-    if not game.on_ground and game.running and not game.air_trick_used:
-        game.air_trick_used = True
+    if not game.on_ground and game.running and not game.air_backflip_used:
+        game.air_backflip_used = True
         game.trick_label = "Backflip"
         game.board_pitch_remaining = 360.0
         game.rider_pitch_remaining = 360.0
@@ -40,9 +46,10 @@ def on_left_release(game, _event) -> None:
 
 def on_right_press(game, _event) -> None:
     # Right triggers nose manual on ground, 180 trigger in air.
-    if not game.on_ground and game.running and not game.air_trick_used:
-        game.air_trick_used = True
-        game.trick_label = "180 Turn"
+    if not game.on_ground and game.running and not game.air_turn180_used:
+        game.air_turn180_used = True
+        game.score += 5
+        game.trick_label = "360 Flip" if game.air_kickflip_used else "180 Turn"
         game.board_yaw_remaining = 180.0
         # Keep rider forward-facing to avoid crossed-leg pose during the 180.
         game.rider_yaw_angle = 0.0
@@ -79,6 +86,9 @@ def update_player(game, dt: float) -> None:
             game.player_vy = 0.0
             game.on_ground = True
             game.air_trick_used = False
+            game.air_kickflip_used = False
+            game.air_turn180_used = False
+            game.air_backflip_used = False
             game.trick_label = ""
             game.flip_angle = 0.0
             game.flip_remaining = 0.0
@@ -112,19 +122,32 @@ def update_player(game, dt: float) -> None:
         # Ground stance: left=manual (nose up), right=nose manual (nose down).
         if game.left_pressed and not game.right_pressed:
             target_board_pitch = -13.0
+            manual_active = True
         elif game.right_pressed and not game.left_pressed:
             target_board_pitch = 13.0
+            manual_active = True
         else:
             target_board_pitch = 0.0
+            manual_active = False
 
         # Manual pose should override any leftover air-rotation target.
         game.board_pitch_remaining = 0.0
         game.rider_pitch_remaining = 0.0
 
+        if manual_active and game.running:
+            game.manual_score_timer += dt
+            while game.manual_score_timer >= 1.5:
+                game.manual_score_timer -= 1.5
+                game.score += 1
+        else:
+            game.manual_score_timer = 0.0
+
         # Smoothly blend current pose to target stance.
         follow = min(1.0, 9.5 * dt)
         game.board_pitch_angle += (target_board_pitch - game.board_pitch_angle) * follow
         game.rider_pitch_angle += (target_board_pitch * 0.62 - game.rider_pitch_angle) * follow
+    else:
+        game.manual_score_timer = 0.0
 
 
 def rotate_point(x: float, y: float, cx: float, cy: float, angle_deg: float) -> tuple[float, float]:

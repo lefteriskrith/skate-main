@@ -4,51 +4,54 @@ from .player import rotate_point
 
 
 def draw_background(game) -> None:
-    # Layered sky + hills + road stripes.
+    # Layered sky + hills + road.
     # Base color bands (sky, midground, ground).
-    game.canvas.create_rectangle(0, 0, game.WIDTH, game.HEIGHT, fill="#c9d3db", width=0)
-    game.canvas.create_rectangle(0, 270, game.WIDTH, game.HEIGHT, fill="#9eaab3", width=0)
-    game.canvas.create_rectangle(0, game.GROUND_Y, game.WIDTH, game.HEIGHT, fill="#6f7569", width=0)
+    game.canvas.create_rectangle(0, 0, game.WIDTH, game.HEIGHT, fill="#b8c5d1", width=0)
+    game.canvas.create_rectangle(0, 250, game.WIDTH, game.HEIGHT, fill="#7f8a95", width=0)
+    game.canvas.create_rectangle(0, game.GROUND_Y, game.WIDTH, game.HEIGHT, fill="#5e665c", width=0)
+
+    # Soft cloud groups.
+    clouds = [
+        (130, 96, 88),
+        (300, 74, 72),
+        (520, 105, 94),
+        (760, 82, 80),
+    ]
+    for cx, cy, r in clouds:
+        game.canvas.create_oval(cx - r, cy - 22, cx + r, cy + 22, fill="#e5edf4", outline="")
+        game.canvas.create_oval(cx - r * 0.62, cy - 36, cx + r * 0.25, cy + 8, fill="#e5edf4", outline="")
+        game.canvas.create_oval(cx - r * 0.1, cy - 34, cx + r * 0.6, cy + 10, fill="#e5edf4", outline="")
 
     x_shift = -game.hills_offset
     # Repeat hill clusters across three wrapped regions.
     for base_x in (x_shift - game.WIDTH, x_shift, x_shift + game.WIDTH):
-        game.canvas.create_oval(base_x - 230, 210, base_x + 210, 490, fill="#7f8f9b", width=0)
-        game.canvas.create_oval(base_x + 150, 220, base_x + 620, 500, fill="#77848f", width=0)
-        game.canvas.create_oval(base_x + 510, 215, base_x + 1020, 510, fill="#6f7a85", width=0)
+        game.canvas.create_oval(base_x - 230, 220, base_x + 210, 500, fill="#6e7a85", width=0)
+        game.canvas.create_oval(base_x + 150, 230, base_x + 620, 510, fill="#65717c", width=0)
+        game.canvas.create_oval(base_x + 510, 225, base_x + 1020, 520, fill="#5c6872", width=0)
 
-    # Rough skyline silhouette with warmer tones (not gray-heavy).
-    skyline_y = 300
-    # Keep skyline static (no parallax motion) and less saturated.
-    bx = -40
-    skyline_palette = ["#5f6f7f", "#5f7770", "#6c6a7a", "#6d7268", "#647078"]
-    trim_palette = ["#7a8896", "#7e908a", "#89829a", "#8b8f84", "#7f8b93"]
-    color_idx = 0
-    while bx < game.WIDTH + 220:
-        # Procedural building width/height variation.
-        w = 70 + int((bx * 0.13) % 40)
-        h = 70 + int((bx * 0.21) % 90)
-        x1 = bx
-        x2 = bx + w
-        y1 = skyline_y - h
-        base = skyline_palette[color_idx % len(skyline_palette)]
-        trim = trim_palette[color_idx % len(trim_palette)]
-        game.canvas.create_rectangle(x1, y1, x2, skyline_y, fill=base, outline="")
-        game.canvas.create_rectangle(x1 + 8, y1 + 10, x2 - 8, y1 + 14, fill=trim, width=0)
-        bx += w + 16
-        color_idx += 1
+    # Midground park strip with trees.
+    game.canvas.create_rectangle(0, 292, game.WIDTH, 366, fill="#6f7b74", width=0)
+
+    # Farther (upper) tree row: smaller trees to create depth.
+    far_tree_x = -int(game.road_offset * 0.14) - 30
+    while far_tree_x < game.WIDTH + 40:
+        game.canvas.create_rectangle(far_tree_x + 10, 306, far_tree_x + 15, 326, fill="#4a4033", outline="")
+        game.canvas.create_oval(far_tree_x, 292, far_tree_x + 24, 314, fill="#4a694a", outline="")
+        game.canvas.create_oval(far_tree_x + 5, 285, far_tree_x + 28, 307, fill="#547554", outline="")
+        far_tree_x += 70
+
+    # Near tree row.
+    tree_x = -int(game.road_offset * 0.22) - 40
+    while tree_x < game.WIDTH + 60:
+        trunk_x1 = tree_x + 16
+        game.canvas.create_rectangle(trunk_x1, 322, trunk_x1 + 8, 354, fill="#4d4336", outline="")
+        game.canvas.create_oval(tree_x, 294, tree_x + 40, 332, fill="#4f6f50", outline="")
+        game.canvas.create_oval(tree_x + 8, 282, tree_x + 46, 320, fill="#5b7a59", outline="")
+        tree_x += 96
 
     # Visual road profile: downhill segments, then flat again.
     def road_profile_y(world_x: float) -> float:
-        p = world_x % 1260.0
-        if p < 260.0:
-            return game.GROUND_Y
-        if p < 560.0:
-            return game.GROUND_Y + (p - 260.0) * 0.06  # downhill
-        if p < 860.0:
-            return game.GROUND_Y + 18.0  # flat lower segment
-        if p < 1120.0:
-            return game.GROUND_Y + 18.0 - (p - 860.0) * 0.069  # rise to flat
+        # Keep visuals aligned with collision floor so skater does not appear to bob up/down.
         return game.GROUND_Y
 
     # Paint over road top so profile is visible without changing gameplay collisions.
@@ -60,52 +63,38 @@ def draw_background(game) -> None:
         road_points.extend((x, road_profile_y(wx)))
         x += 24
     road_points.extend((game.WIDTH, game.HEIGHT, 0, game.HEIGHT))
-    game.canvas.create_polygon(road_points, fill="#646c61", outline="")
+    game.canvas.create_polygon(road_points, fill="#40464d", outline="")
 
-    stripe_w = 92
-    x = -game.road_offset
-    while x < game.WIDTH:
-        # Stripe y follows current road profile to stay grounded visually.
-        wx = x + game.road_offset + 24
-        stripe_y = road_profile_y(wx)
+    # Road shoulders.
+    game.canvas.create_rectangle(0, game.GROUND_Y, game.WIDTH, game.GROUND_Y + 7, fill="#596269", width=0)
+    game.canvas.create_rectangle(0, game.GROUND_Y + 36, game.WIDTH, game.GROUND_Y + 44, fill="#2f353a", width=0)
+
+    # Dashed center line.
+    dash_x = -game.road_offset
+    while dash_x < game.WIDTH + 50:
         game.canvas.create_rectangle(
-            x,
-            stripe_y + 36,
-            x + 48,
-            stripe_y + 44,
-            fill="#a8ab9a",
+            dash_x,
+            game.GROUND_Y + 20,
+            dash_x + 42,
+            game.GROUND_Y + 26,
+            fill="#ddd6a8",
             width=0,
         )
-        x += stripe_w
+        dash_x += 88
 
-    # Dirt/stain strips for a grimier environment.
-    grime_x = -game.grime_offset
-    while grime_x < game.WIDTH:
-        # Two overlapping blobs create a rough stain.
+    # Subtle asphalt texture.
+    tex_x = -game.grime_offset
+    while tex_x < game.WIDTH + 80:
+        game.canvas.create_oval(tex_x + 8, game.GROUND_Y + 11, tex_x + 30, game.GROUND_Y + 18, fill="#353b41", outline="")
         game.canvas.create_oval(
-            grime_x + 10,
-            game.GROUND_Y + 10,
-            grime_x + 55,
-            game.GROUND_Y + 28,
-            fill="#55584f",
+            tex_x + 34,
+            game.GROUND_Y + 26,
+            tex_x + 62,
+            game.GROUND_Y + 33,
+            fill="#343a40",
             outline="",
         )
-        game.canvas.create_oval(
-            grime_x + 35,
-            game.GROUND_Y + 18,
-            grime_x + 90,
-            game.GROUND_Y + 34,
-            fill="#4b4f47",
-            outline="",
-        )
-        grime_x += 85
-
-    # Subtle grain dots for a dirtier visual style.
-    for i in range(56):
-        gx = int((i * 173 + game.grime_offset * 4) % game.WIDTH)
-        gy = 180 + int((i * 97) % 250)
-        shade = "#707870" if i % 2 == 0 else "#646b64"
-        game.canvas.create_rectangle(gx, gy, gx + 2, gy + 2, fill=shade, width=0)
+        tex_x += 74
 
 
 def draw_obstacles(game) -> None:
@@ -117,7 +106,8 @@ def draw_obstacles(game) -> None:
         y2 = game.GROUND_Y
         kind = obstacle.get("kind", "block")
 
-        game.canvas.create_rectangle(x1 - 2, y2 - 2, x2 + 2, y2 + 4, fill="#4b5147", width=0)
+        # Ground contact shadow improves depth/readability.
+        game.canvas.create_oval(x1 - 6, y2 - 1, x2 + 6, y2 + 10, fill="#495047", outline="")
         if kind == "stairs":
             # Draw descending steps instead of one block.
             steps = int(obstacle.get("steps", 5))
@@ -127,12 +117,28 @@ def draw_obstacles(game) -> None:
                 sx2 = x1 + (i + 1) * step_w
                 step_h = obstacle["h"] * (1 - (i / (steps + 1)))
                 sy1 = y2 - step_h
-                game.canvas.create_rectangle(sx1, sy1, sx2, y2, fill="#5e6369", outline="#454a50", width=1)
-                game.canvas.create_line(sx1 + 3, sy1 + 5, sx2 - 3, sy1 + 5, fill="#777d84", width=1)
+                game.canvas.create_rectangle(sx1, sy1, sx2, y2, fill="#606770", outline="#444b54", width=1)
+                # Top lip on each stair to make shape legible at speed.
+                game.canvas.create_rectangle(sx1 + 2, sy1 + 2, sx2 - 2, sy1 + 6, fill="#838b95", width=0)
+                game.canvas.create_line(sx1 + 3, sy1 + 8, sx2 - 3, sy1 + 8, fill="#6f7782", width=1)
         else:
             # Draw classic box obstacle with top highlight.
-            game.canvas.create_rectangle(x1, y1, x2, y2, fill="#575d64", outline="#43484f", width=2)
-            game.canvas.create_rectangle(x1 + 5, y1 + 6, x2 - 5, y1 + 11, fill="#757c85", width=0)
+            game.canvas.create_rectangle(x1, y1, x2, y2, fill="#5c636d", outline="#424a54", width=2)
+            game.canvas.create_rectangle(x1 + 5, y1 + 6, x2 - 5, y1 + 12, fill="#7f8894", width=0)
+            # Add a subtle side face so blocks don't look flat.
+            side_w = min(8, max(4, (x2 - x1) * 0.18))
+            game.canvas.create_polygon(
+                x2,
+                y1 + 1,
+                x2 + side_w,
+                y1 + 5,
+                x2 + side_w,
+                y2 + 1,
+                x2,
+                y2 - 2,
+                fill="#49505a",
+                outline="",
+            )
 
 
 def draw_player(game) -> None:
@@ -183,16 +189,35 @@ def draw_player(game) -> None:
     game.canvas.create_polygon(flat_pts, fill=deck_color, outline=edge_color, width=2)
 
     if yaw_face > 0.33:
-        # Wheels follow board pitch in air and snap to floor on ground.
-        wheel_cy = deck_bottom + wheel_r + 1
+        # Wheels are attached to the deck and must follow kickflip roll too.
+        roll_cos = math.cos(roll_rad)
+        wheel_mount = thickness / 2 + wheel_r + 1
+        wheel_cy = board_center_y + wheel_mount * roll_cos
+        # Make wheels look thinner when board is edge-on during the flip.
+        visible_wheel_r = max(2.0, wheel_r * max(0.25, abs(roll_cos)))
         if game.on_ground and abs(game.board_pitch_angle) < 1:
             wheel_cy = game.GROUND_Y - wheel_r + 1
+            visible_wheel_r = wheel_r
         ltx = deck_x1 + max(16, (deck_x2 - deck_x1) * 0.24)
         rtx = deck_x2 - max(16, (deck_x2 - deck_x1) * 0.24)
         ltx, lty = rotate_point(ltx, wheel_cy, board_center_x, board_center_y, game.board_pitch_angle)
         rtx, rty = rotate_point(rtx, wheel_cy, board_center_x, board_center_y, game.board_pitch_angle)
-        game.canvas.create_oval(ltx - wheel_r, lty - wheel_r, ltx + wheel_r, lty + wheel_r, fill="#253547", width=0)
-        game.canvas.create_oval(rtx - wheel_r, rty - wheel_r, rtx + wheel_r, rty + wheel_r, fill="#253547", width=0)
+        game.canvas.create_oval(
+            ltx - visible_wheel_r,
+            lty - visible_wheel_r,
+            ltx + visible_wheel_r,
+            lty + visible_wheel_r,
+            fill="#253547",
+            width=0,
+        )
+        game.canvas.create_oval(
+            rtx - visible_wheel_r,
+            rty - visible_wheel_r,
+            rtx + visible_wheel_r,
+            rty + visible_wheel_r,
+            fill="#253547",
+            width=0,
+        )
 
     rider_dir = -1 if math.cos(math.radians(game.rider_yaw_angle)) < 0 else 1
     # Build a simple stick-figure skeleton, then rotate it by rider pitch.
@@ -251,8 +276,10 @@ def draw_player(game) -> None:
 
 def draw_hud(game) -> None:
     # HUD stays minimal to avoid cluttering animation readability.
-    logo_cx = game.WIDTH - 74
-    logo_cy = 76
+    title_x = game.WIDTH - 72
+    title_y = 18
+    logo_cx = title_x
+    logo_cy = 66
 
     def make_board_points(angle_deg: float) -> list[float]:
         # Build a tiny board shape and rotate it around logo center.
@@ -276,16 +303,16 @@ def draw_hud(game) -> None:
             pts.extend((x, y))
         return pts
 
-    game.canvas.create_polygon(make_board_points(40), fill="#2f3f56", outline="#1f2a39", width=2)
-    game.canvas.create_polygon(make_board_points(-40), fill="#3f5f84", outline="#1f2a39", width=2)
-    game.canvas.create_oval(logo_cx - 6, logo_cy - 6, logo_cx + 6, logo_cy + 6, fill="#1f2a39", width=0)
+    game.canvas.create_polygon(make_board_points(40), fill="#2a394f", outline="#1a2533", width=2)
+    game.canvas.create_polygon(make_board_points(-40), fill="#476589", outline="#1a2533", width=2)
+    game.canvas.create_oval(logo_cx - 6, logo_cy - 6, logo_cx + 6, logo_cy + 6, fill="#1a2533", width=0)
     game.canvas.create_text(
-        game.WIDTH - 18,
-        18,
+        title_x,
+        title_y,
         text="Skate Rush",
-        fill="#1f2d3a",
+        fill="#18222c",
         font=("Segoe UI", 12, "bold"),
-        anchor="ne",
+        anchor="n",
     )
 
     controls = (
@@ -309,3 +336,52 @@ def draw_hud(game) -> None:
         game.canvas.create_text(480, 215, text="You crashed!", fill="#243444", font=("Segoe UI", 28, "bold"))
         game.canvas.create_text(480, 258, text=f"Final score: {game.score}", fill="#32485f", font=("Segoe UI", 18))
         game.canvas.create_text(480, 300, text="Press R to play again", fill="#47627b", font=("Segoe UI", 14))
+
+
+def draw_menu(game) -> None:
+    # Modal overlay used at boot and when Escape is pressed.
+    game.canvas.create_rectangle(0, 0, game.WIDTH, game.HEIGHT, fill="#111722", stipple="gray50", width=0)
+    panel_x1, panel_y1, panel_x2, panel_y2 = 190, 70, 770, 470
+    game.canvas.create_rectangle(panel_x1, panel_y1, panel_x2, panel_y2, fill="#e6edf4", outline="#556274", width=3)
+    game.canvas.create_text(480, 104, text="Skate Rush", fill="#1a2633", font=("Segoe UI", 28, "bold"))
+
+    start_label = "Resume" if game.running and game.score > 0 else "Start"
+    if not game.running:
+        start_label = "Restart"
+    entries = [start_label, f"Sound: {game.volume_level}/3", "Tricks"]
+
+    y = 160
+    for idx, text in enumerate(entries):
+        selected = idx == game.menu_index
+        fill = "#d9e9fb" if selected else "#f2f6fa"
+        border = "#3f77b6" if selected else "#9cafc2"
+        game.canvas.create_rectangle(252, y - 22, 708, y + 22, fill=fill, outline=border, width=2)
+        game.canvas.create_text(480, y, text=text, fill="#1d2a38", font=("Segoe UI", 15, "bold"))
+        y += 52
+
+    # Visual volume bar.
+    bar_x = 410
+    for i in range(3):
+        bx1 = bar_x + i * 34
+        color = "#2f7bd1" if i < game.volume_level else "#c9d5e2"
+        game.canvas.create_rectangle(bx1, 198, bx1 + 24, 214, fill=color, outline="")
+
+    trick_lines = [
+        "Jump: Up (+1)",
+        "Kickflip: Down in air (+5)",
+        "180 Turn: Right in air (+5)",
+        "360 Flip: Kickflip + 180 in one jump (+10 total)",
+        "Souza: Hold Left/Right on ground (+1 every 1.5s)",
+    ]
+    ty = 295
+    for line in trick_lines:
+        game.canvas.create_text(260, ty, text=line, fill="#213346", font=("Segoe UI", 12), anchor="w")
+        ty += 26
+
+    game.canvas.create_text(
+        480,
+        446,
+        text="Esc: Open/Close menu   Up/Down: Select   Left/Right: Sound   Enter: Start/Resume",
+        fill="#3e4d5f",
+        font=("Segoe UI", 10),
+    )
