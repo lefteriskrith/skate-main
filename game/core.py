@@ -60,9 +60,12 @@ class SkateGame:
         self.running = True
         self.score = 0
         self.menu_open = True
+        self.menu_screen = "main"
         self.menu_index = 0
         self.menu_items = ["start", "sound", "tricks"]
+        self.sound_focus = 0
         self.volume_level = 2
+        self.menu_hitboxes: list[dict[str, object]] = []
 
         # Player physics state.
         self.scroll_speed = self.BASE_SCROLL_SPEED
@@ -109,6 +112,7 @@ class SkateGame:
         # Prepare first batch of obstacles and controls.
         obstacles.spawn_initial_obstacles(self)
         self._bind_keys()
+        self.canvas.bind("<Button-1>", self._on_click)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.focus_force()
 
@@ -166,6 +170,7 @@ class SkateGame:
     def _on_escape(self, _event: tk.Event) -> None:
         self.menu_open = not self.menu_open
         if self.menu_open:
+            self.menu_screen = "main"
             self.left_pressed = False
             self.right_pressed = False
 
@@ -174,28 +179,76 @@ class SkateGame:
             return
         self._menu_activate()
 
+    def _on_click(self, event: tk.Event) -> None:
+        if not self.menu_open:
+            return
+        self._menu_click(event.x, event.y)
+
     def _on_close(self) -> None:
         self.music.stop()
         self.root.destroy()
 
     def _menu_move(self, step: int) -> None:
-        self.menu_index = (self.menu_index + step) % len(self.menu_items)
+        if self.menu_screen == "main":
+            self.menu_index = (self.menu_index + step) % len(self.menu_items)
+            return
+        if self.menu_screen == "sound":
+            self.sound_focus = (self.sound_focus + step) % 2
+            return
 
     def _menu_activate(self) -> None:
+        if self.menu_screen == "sound":
+            if self.sound_focus == 0:
+                self._adjust_volume(1)
+            else:
+                self.menu_screen = "main"
+            return
+        if self.menu_screen == "tricks":
+            self.menu_screen = "main"
+            return
+
         selected = self.menu_items[self.menu_index]
         if selected == "start":
             if not self.running:
                 self._reset()
             self.menu_open = False
+        elif selected == "sound":
+            self.menu_screen = "sound"
+            self.sound_focus = 0
+        elif selected == "tricks":
+            self.menu_screen = "tricks"
 
     def _adjust_volume(self, delta: int) -> None:
-        if self.menu_items[self.menu_index] != "sound":
+        if self.menu_screen != "sound":
             return
         new_level = max(0, min(3, self.volume_level + delta))
         if new_level == self.volume_level:
             return
         self.volume_level = new_level
         self.music.set_volume(self.volume_level)
+
+    def _menu_click(self, x: int, y: int) -> None:
+        for hit in self.menu_hitboxes:
+            x1, y1, x2, y2 = hit["rect"]
+            if x1 <= x <= x2 and y1 <= y <= y2:
+                action = str(hit["action"])
+                if action == "start":
+                    if not self.running:
+                        self._reset()
+                    self.menu_open = False
+                    self.menu_screen = "main"
+                elif action == "open_sound":
+                    self.menu_screen = "sound"
+                    self.sound_focus = 0
+                elif action == "open_tricks":
+                    self.menu_screen = "tricks"
+                elif action == "sound_down":
+                    self._adjust_volume(-1)
+                elif action == "sound_up":
+                    self._adjust_volume(1)
+                elif action == "back_main":
+                    self.menu_screen = "main"
+                return
 
     def _reset(self, _event: tk.Event | None = None) -> None:
         # Hard reset of runtime state while keeping window/widgets alive.
@@ -235,6 +288,7 @@ class SkateGame:
         self.next_obstacle_x = self.WIDTH + 180
         obstacles.spawn_initial_obstacles(self)
         self.menu_open = False
+        self.menu_screen = "main"
 
         self.last_time = time.perf_counter()
         self.status.set("Score: 0")
@@ -320,6 +374,8 @@ class SkateGame:
         render.draw_hud(self)
         if self.menu_open:
             render.draw_menu(self)
+        else:
+            self.menu_hitboxes = []
 
         # Schedule next frame.
         self.root.after(cfg.FRAME_DELAY_MS, self._tick)

@@ -344,44 +344,95 @@ def draw_menu(game) -> None:
     panel_x1, panel_y1, panel_x2, panel_y2 = 190, 70, 770, 470
     game.canvas.create_rectangle(panel_x1, panel_y1, panel_x2, panel_y2, fill="#e6edf4", outline="#556274", width=3)
     game.canvas.create_text(480, 104, text="Skate Rush", fill="#1a2633", font=("Segoe UI", 28, "bold"))
+    game.menu_hitboxes = []
 
-    start_label = "Resume" if game.running and game.score > 0 else "Start"
-    if not game.running:
-        start_label = "Restart"
-    entries = [start_label, f"Sound: {game.volume_level}/3", "Tricks"]
+    if game.menu_screen == "main":
+        start_label = "Resume" if game.running and game.score > 0 else "Start"
+        if not game.running:
+            start_label = "Restart"
+        entries = [
+            ("start", start_label),
+            ("open_sound", "Sound"),
+            ("open_tricks", "Tricks"),
+        ]
+        y = 172
+        for idx, (_, text) in enumerate(entries):
+            selected = idx == game.menu_index
+            fill = "#d9e9fb" if selected else "#f2f6fa"
+            border = "#3f77b6" if selected else "#9cafc2"
+            x1, y1, x2, y2 = 252, y - 24, 708, y + 24
+            game.canvas.create_rectangle(x1, y1, x2, y2, fill=fill, outline=border, width=2)
+            game.canvas.create_text(480, y, text=text, fill="#1d2a38", font=("Segoe UI", 16, "bold"))
+            game.menu_hitboxes.append({"rect": (x1, y1, x2, y2), "action": entries[idx][0]})
+            y += 62
 
-    y = 160
-    for idx, text in enumerate(entries):
-        selected = idx == game.menu_index
-        fill = "#d9e9fb" if selected else "#f2f6fa"
-        border = "#3f77b6" if selected else "#9cafc2"
-        game.canvas.create_rectangle(252, y - 22, 708, y + 22, fill=fill, outline=border, width=2)
-        game.canvas.create_text(480, y, text=text, fill="#1d2a38", font=("Segoe UI", 15, "bold"))
-        y += 52
+        game.canvas.create_text(
+            480,
+            430,
+            text="Click or Enter on an option | Esc: close menu",
+            fill="#3e4d5f",
+            font=("Segoe UI", 11),
+        )
+        return
 
-    # Visual volume bar.
-    bar_x = 410
-    for i in range(3):
-        bx1 = bar_x + i * 34
-        color = "#2f7bd1" if i < game.volume_level else "#c9d5e2"
-        game.canvas.create_rectangle(bx1, 198, bx1 + 24, 214, fill=color, outline="")
+    if game.menu_screen == "sound":
+        game.canvas.create_text(480, 156, text="Sound", fill="#1d2a38", font=("Segoe UI", 22, "bold"))
+        game.canvas.create_text(480, 188, text="Use Left/Right or click - / +", fill="#3e4d5f", font=("Segoe UI", 11))
 
+        sx1, sy1, sx2, sy2 = 292, 236, 668, 286
+        game.canvas.create_rectangle(sx1, sy1, sx2, sy2, fill="#f2f6fa", outline="#9cafc2", width=2)
+
+        bx1, by1, bx2, by2 = 318, 246, 358, 276
+        game.canvas.create_rectangle(bx1, by1, bx2, by2, fill="#dfe9f3", outline="#7d8e9e", width=2)
+        game.canvas.create_text((bx1 + bx2) // 2, (by1 + by2) // 2, text="-", fill="#1d2a38", font=("Segoe UI", 16, "bold"))
+        game.menu_hitboxes.append({"rect": (bx1, by1, bx2, by2), "action": "sound_down"})
+
+        px1, py1, px2, py2 = 602, 246, 642, 276
+        game.canvas.create_rectangle(px1, py1, px2, py2, fill="#dfe9f3", outline="#7d8e9e", width=2)
+        game.canvas.create_text((px1 + px2) // 2, (py1 + py2) // 2, text="+", fill="#1d2a38", font=("Segoe UI", 16, "bold"))
+        game.menu_hitboxes.append({"rect": (px1, py1, px2, py2), "action": "sound_up"})
+
+        bar_x = 394
+        for i in range(3):
+            lx1 = bar_x + i * 56
+            color = "#2f7bd1" if i < game.volume_level else "#c9d5e2"
+            game.canvas.create_rectangle(lx1, 248, lx1 + 36, 274, fill=color, outline="")
+
+        back_selected = game.sound_focus == 1
+        bfill = "#d9e9fb" if back_selected else "#f2f6fa"
+        bborder = "#3f77b6" if back_selected else "#9cafc2"
+        x1, y1, x2, y2 = 360, 360, 600, 408
+        game.canvas.create_rectangle(x1, y1, x2, y2, fill=bfill, outline=bborder, width=2)
+        game.canvas.create_text(480, 384, text="Back", fill="#1d2a38", font=("Segoe UI", 14, "bold"))
+        game.menu_hitboxes.append({"rect": (x1, y1, x2, y2), "action": "back_main"})
+
+        game.canvas.create_text(
+            480,
+            440,
+            text="Enter on Back to return",
+            fill="#3e4d5f",
+            font=("Segoe UI", 11),
+        )
+        return
+
+    # Tricks screen.
+    game.canvas.create_text(480, 152, text="Tricks", fill="#1d2a38", font=("Segoe UI", 22, "bold"))
     trick_lines = [
-        "Jump: Up (+1)",
-        "Kickflip: Down in air (+5)",
-        "180 Turn: Right in air (+5)",
-        "360 Flip: Kickflip + 180 in one jump (+10 total)",
-        "Souza: Hold Left/Right on ground (+1 every 1.5s)",
+        "Up: Jump (+1)",
+        "Down in air: Kickflip (+5)",
+        "Right in air: 180 Turn (+5)",
+        "Down + Right in one jump: 360 Flip (+10 total)",
+        "Hold Left on ground: Souza",
+        "Hold Right on ground: Front Souza",
+        "Souza score: +1 every 1.5 sec",
     ]
-    ty = 295
+    ty = 198
     for line in trick_lines:
-        game.canvas.create_text(260, ty, text=line, fill="#213346", font=("Segoe UI", 12), anchor="w")
-        ty += 26
+        game.canvas.create_text(280, ty, text=line, fill="#213346", font=("Segoe UI", 13), anchor="w")
+        ty += 30
 
-    game.canvas.create_text(
-        480,
-        446,
-        text="Esc: Open/Close menu   Up/Down: Select   Left/Right: Sound   Enter: Start/Resume",
-        fill="#3e4d5f",
-        font=("Segoe UI", 10),
-    )
+    x1, y1, x2, y2 = 360, 390, 600, 438
+    game.canvas.create_rectangle(x1, y1, x2, y2, fill="#d9e9fb", outline="#3f77b6", width=2)
+    game.canvas.create_text(480, 414, text="Back", fill="#1d2a38", font=("Segoe UI", 14, "bold"))
+    game.menu_hitboxes.append({"rect": (x1, y1, x2, y2), "action": "back_main"})
+    game.canvas.create_text(480, 446, text="Enter or click Back", fill="#3e4d5f", font=("Segoe UI", 11))
