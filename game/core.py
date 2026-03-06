@@ -66,6 +66,9 @@ class SkateGame:
         self.sound_focus = 0
         self.volume_level = 2
         self.menu_hitboxes: list[dict[str, object]] = []
+        self.gameplay_time = 0.0
+        self.speed_multiplier = 1.0
+        self.next_speedup_at = 20.0
 
         # Player physics state.
         self.scroll_speed = self.BASE_SCROLL_SPEED
@@ -254,6 +257,9 @@ class SkateGame:
         # Hard reset of runtime state while keeping window/widgets alive.
         self.running = True
         self.score = 0
+        self.gameplay_time = 0.0
+        self.speed_multiplier = 1.0
+        self.next_speedup_at = 20.0
         self.scroll_speed = self.BASE_SCROLL_SPEED
 
         self.player_y = self.GROUND_Y - self.PLAYER_H
@@ -301,20 +307,20 @@ class SkateGame:
 
     def _update_speed(self, dt: float) -> None:
         # Keep cruise speed stable; left/right are used for ground manuals.
+        target_speed = self.BASE_SCROLL_SPEED * self.speed_multiplier
         self.scroll_speed = self._approach(
             self.scroll_speed,
-            self.BASE_SCROLL_SPEED,
+            target_speed,
             self.RETURN_ACCEL * dt,
         )
-
-        self.scroll_speed = max(self.MIN_SCROLL_SPEED, min(self.MAX_SCROLL_SPEED, self.scroll_speed))
+        max_speed = self.MAX_SCROLL_SPEED * self.speed_multiplier
+        self.scroll_speed = max(self.MIN_SCROLL_SPEED, min(max_speed, self.scroll_speed))
 
     def _update_background_motion(self, dt: float) -> None:
-        # Background layers move slower than foreground for cheap parallax.
-        self.road_offset = (self.road_offset + self.scroll_speed * dt) % 92
-        # Keep skyline/hills static to avoid distracting "floating buildings".
+        # Keep scene static except road dashes for a subtle motion feel.
+        self.road_offset = (self.road_offset + self.scroll_speed * dt) % 88
         self.hills_offset = 0.0
-        self.grime_offset = (self.grime_offset + self.scroll_speed * 0.35 * dt) % 340
+        self.grime_offset = 0.0
 
     def _check_collision(self) -> bool:
         # Slightly inset player rectangle for fairer collisions.
@@ -356,6 +362,10 @@ class SkateGame:
 
         if self.running and not self.menu_open:
             # Update gameplay simulation first.
+            self.gameplay_time += dt
+            while self.gameplay_time >= self.next_speedup_at:
+                self.speed_multiplier *= 1.5
+                self.next_speedup_at += 20.0
             self._update_speed(dt)
             player.update_player(self, dt)
             obstacles.update_obstacles(self, dt)

@@ -22,32 +22,58 @@ def draw_background(game) -> None:
         game.canvas.create_oval(cx - r * 0.62, cy - 36, cx + r * 0.25, cy + 8, fill="#e5edf4", outline="")
         game.canvas.create_oval(cx - r * 0.1, cy - 34, cx + r * 0.6, cy + 10, fill="#e5edf4", outline="")
 
-    x_shift = -game.hills_offset
-    # Repeat hill clusters across three wrapped regions.
-    for base_x in (x_shift - game.WIDTH, x_shift, x_shift + game.WIDTH):
-        game.canvas.create_oval(base_x - 230, 220, base_x + 210, 500, fill="#6e7a85", width=0)
-        game.canvas.create_oval(base_x + 150, 230, base_x + 620, 510, fill="#65717c", width=0)
-        game.canvas.create_oval(base_x + 510, 225, base_x + 1020, 520, fill="#5c6872", width=0)
+    # Mountain silhouettes (replace circular hills).
+    mountains_back = [
+        (-120, 300, 90, 205, 320, 300),
+        (180, 300, 420, 188, 650, 300),
+        (520, 300, 760, 210, 1010, 300),
+    ]
+    mountains_front = [
+        (-60, 320, 150, 235, 360, 320),
+        (260, 320, 510, 218, 760, 320),
+        (610, 320, 850, 232, 1110, 320),
+    ]
+    for x1, y1, px, py, x2, y2 in mountains_back:
+        game.canvas.create_polygon(x1, y1, px, py, x2, y2, fill="#6b7782", outline="")
+    for x1, y1, px, py, x2, y2 in mountains_front:
+        game.canvas.create_polygon(x1, y1, px, py, x2, y2, fill="#5f6b76", outline="")
 
     # Midground park strip with trees.
     game.canvas.create_rectangle(0, 292, game.WIDTH, 366, fill="#6f7b74", width=0)
 
     # Farther (upper) tree row: smaller trees to create depth.
-    far_tree_x = -int(game.road_offset * 0.14) - 30
+    far_tree_x = -30
     while far_tree_x < game.WIDTH + 40:
         game.canvas.create_rectangle(far_tree_x + 10, 306, far_tree_x + 15, 326, fill="#4a4033", outline="")
         game.canvas.create_oval(far_tree_x, 292, far_tree_x + 24, 314, fill="#4a694a", outline="")
         game.canvas.create_oval(far_tree_x + 5, 285, far_tree_x + 28, 307, fill="#547554", outline="")
         far_tree_x += 70
 
+    # Extra very-far tree row (smaller and higher).
+    very_far_x = -20
+    while very_far_x < game.WIDTH + 30:
+        game.canvas.create_rectangle(very_far_x + 7, 278, very_far_x + 11, 292, fill="#443a30", outline="")
+        game.canvas.create_oval(very_far_x, 268, very_far_x + 18, 284, fill="#486246", outline="")
+        game.canvas.create_oval(very_far_x + 4, 262, very_far_x + 20, 278, fill="#51704f", outline="")
+        very_far_x += 56
+
     # Near tree row.
-    tree_x = -int(game.road_offset * 0.22) - 40
+    tree_x = -40
     while tree_x < game.WIDTH + 60:
         trunk_x1 = tree_x + 16
         game.canvas.create_rectangle(trunk_x1, 322, trunk_x1 + 8, 354, fill="#4d4336", outline="")
         game.canvas.create_oval(tree_x, 294, tree_x + 40, 332, fill="#4f6f50", outline="")
         game.canvas.create_oval(tree_x + 8, 282, tree_x + 46, 320, fill="#5b7a59", outline="")
         tree_x += 96
+
+    # Extra close tree row.
+    close_tree_x = -60
+    while close_tree_x < game.WIDTH + 80:
+        trunk_x1 = close_tree_x + 20
+        game.canvas.create_rectangle(trunk_x1, 346, trunk_x1 + 10, 378, fill="#4b3f32", outline="")
+        game.canvas.create_oval(close_tree_x, 316, close_tree_x + 52, 358, fill="#486844", outline="")
+        game.canvas.create_oval(close_tree_x + 10, 304, close_tree_x + 58, 346, fill="#557750", outline="")
+        close_tree_x += 118
 
     # Visual road profile: downhill segments, then flat again.
     def road_profile_y(world_x: float) -> float:
@@ -83,7 +109,7 @@ def draw_background(game) -> None:
         dash_x += 88
 
     # Subtle asphalt texture.
-    tex_x = -game.grime_offset
+    tex_x = 0
     while tex_x < game.WIDTH + 80:
         game.canvas.create_oval(tex_x + 8, game.GROUND_Y + 11, tex_x + 30, game.GROUND_Y + 18, fill="#353b41", outline="")
         game.canvas.create_oval(
@@ -121,6 +147,35 @@ def draw_obstacles(game) -> None:
                 # Top lip on each stair to make shape legible at speed.
                 game.canvas.create_rectangle(sx1 + 2, sy1 + 2, sx2 - 2, sy1 + 6, fill="#838b95", width=0)
                 game.canvas.create_line(sx1 + 3, sy1 + 8, sx2 - 3, sy1 + 8, fill="#6f7782", width=1)
+        elif kind == "cone":
+            # Traffic cone style.
+            game.canvas.create_polygon(
+                (x1 + x2) / 2,
+                y1,
+                x2 - 2,
+                y2 - 3,
+                x1 + 2,
+                y2 - 3,
+                fill="#d16a2f",
+                outline="#8e451c",
+                width=2,
+            )
+            game.canvas.create_rectangle(x1 + 4, y1 + 11, x2 - 4, y1 + 16, fill="#f2e6d8", width=0)
+            game.canvas.create_rectangle(x1 - 3, y2 - 4, x2 + 3, y2 + 2, fill="#555e67", width=0)
+        elif kind == "barrier":
+            # Flat road barrier.
+            game.canvas.create_rectangle(x1, y1 + 8, x2, y2, fill="#9a4f41", outline="#6f352b", width=2)
+            game.canvas.create_rectangle(x1 + 6, y1 + 15, x2 - 6, y1 + 21, fill="#e6d7c8", width=0)
+            game.canvas.create_rectangle(x1 + 6, y1 + 28, x2 - 6, y1 + 34, fill="#e6d7c8", width=0)
+            game.canvas.create_rectangle(x1 + 8, y2 - 4, x1 + 14, y2 + 4, fill="#414850", width=0)
+            game.canvas.create_rectangle(x2 - 14, y2 - 4, x2 - 8, y2 + 4, fill="#414850", width=0)
+        elif kind == "barrel":
+            # Metal barrel with bands.
+            cx = (x1 + x2) * 0.5
+            game.canvas.create_oval(x1, y1 + 2, x2, y2 - 2, fill="#4f667c", outline="#364a5f", width=2)
+            game.canvas.create_rectangle(x1 + 3, y1 + 10, x2 - 3, y1 + 14, fill="#7890a6", width=0)
+            game.canvas.create_rectangle(x1 + 3, y2 - 14, x2 - 3, y2 - 10, fill="#7890a6", width=0)
+            game.canvas.create_oval(cx - 7, y1 + 12, cx + 7, y1 + 24, fill="#3a5065", width=0)
         else:
             # Draw classic box obstacle with top highlight.
             game.canvas.create_rectangle(x1, y1, x2, y2, fill="#5c636d", outline="#424a54", width=2)
@@ -314,22 +369,6 @@ def draw_hud(game) -> None:
         font=("Segoe UI", 12, "bold"),
         anchor="n",
     )
-
-    controls = (
-        "Up: Jump | Left: Souza (air: Backflip) | Right: Brositni Souza (air: 180) "
-        "| Down (air): Kickflip | R: Restart"
-    )
-    game.canvas.create_text(18, 18, text=controls, fill="#1f2d3a", font=("Segoe UI", 11), anchor="nw")
-
-    if game.trick_label:
-        game.canvas.create_text(
-            18,
-            40,
-            text=f"Trick: {game.trick_label}",
-            fill="#2c4d6a",
-            font=("Segoe UI", 11, "bold"),
-            anchor="nw",
-        )
 
     if not game.running:
         game.canvas.create_rectangle(220, 160, 740, 350, fill="#ffffff", outline="#9fb2c8", width=3)

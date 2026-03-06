@@ -8,15 +8,40 @@ def spawn_initial_obstacles(game) -> None:
 
 
 def spawn_obstacle(game) -> None:
-    # Mix classic blocks with occasional descending stair sets.
+    # Mix several obstacle archetypes for more varied runs.
     kind_roll = random.random()
-    kind = "stairs" if kind_roll < 0.22 else "block"
+    if kind_roll < 0.18:
+        kind = "stairs"
+    elif kind_roll < 0.43:
+        kind = "cone"
+    elif kind_roll < 0.62:
+        kind = "barrier"
+    elif kind_roll < 0.80:
+        kind = "barrel"
+    else:
+        kind = "block"
+
     if kind == "stairs":
         width = random.randint(120, 190)
         height = random.randint(38, 66)
         steps = random.randint(4, 6)
         # Give stairs a bit more room so they read clearly before contact.
         gap = random.randint(game.OBSTACLE_MIN_GAP + 80, game.OBSTACLE_MAX_GAP + 140)
+    elif kind == "cone":
+        width = random.randint(24, 36)
+        height = random.randint(30, 46)
+        steps = 0
+        gap = random.randint(game.OBSTACLE_MIN_GAP - 90, game.OBSTACLE_MAX_GAP - 150)
+    elif kind == "barrier":
+        width = random.randint(84, 128)
+        height = random.randint(40, 58)
+        steps = 0
+        gap = random.randint(game.OBSTACLE_MIN_GAP - 20, game.OBSTACLE_MAX_GAP - 40)
+    elif kind == "barrel":
+        width = random.randint(34, 48)
+        height = random.randint(44, 66)
+        steps = 0
+        gap = random.randint(game.OBSTACLE_MIN_GAP - 70, game.OBSTACLE_MAX_GAP - 120)
     else:
         width = random.randint(30, 60)
         height = random.randint(32, 72)
