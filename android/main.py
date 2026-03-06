@@ -11,7 +11,7 @@ from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.text import Label as CoreLabel
 from kivy.core.window import Window
-from kivy.graphics import Color, Ellipse, Line, Mesh, Rectangle
+from kivy.graphics import Color, Ellipse, Line, Rectangle, Triangle
 from kivy.uix.widget import Widget
 
 # Allow importing the original desktop modules from project root.
@@ -21,6 +21,12 @@ if PROJECT_ROOT not in sys.path:
 
 from game import config as cfg  # noqa: E402
 from game import obstacles, player, render  # noqa: E402
+
+
+def approach(value: float, target: float, amount: float) -> float:
+    if value < target:
+        return min(target, value + amount)
+    return max(target, value - amount)
 
 
 class CanvasAdapter:
@@ -58,8 +64,8 @@ class CanvasAdapter:
 
         sx = self.widget.sx(left)
         sy = self.widget.sy(bottom)
-        sw = self.widget.sw(right - left)
-        sh = self.widget.sh(bottom - top)
+        sw = max(1.0, round(self.widget.sw(right - left)))
+        sh = max(1.0, round(self.widget.sh(bottom - top)))
 
         if fill != "":
             Color(*self._color(fill))
@@ -80,8 +86,8 @@ class CanvasAdapter:
 
         sx = self.widget.sx(left)
         sy = self.widget.sy(bottom)
-        sw = self.widget.sw(right - left)
-        sh = self.widget.sh(bottom - top)
+        sw = max(1.0, round(self.widget.sw(right - left)))
+        sh = max(1.0, round(self.widget.sh(bottom - top)))
 
         if fill != "":
             Color(*self._color(fill))
@@ -106,17 +112,94 @@ class CanvasAdapter:
             mapped.extend((x, y))
 
         if fill != "" and len(mapped) >= 6:
-            vertices: list[float] = []
-            for i in range(0, len(mapped), 2):
-                vertices.extend((mapped[i], mapped[i + 1], 0.0, 0.0))
-            indices = list(range(len(mapped) // 2))
-            Color(*self._color(fill))
-            Mesh(vertices=vertices, indices=indices, mode="triangle_fan")
+            pts_xy = [(mapped[i], mapped[i + 1]) for i in range(0, len(mapped), 2)]
+            triangles = self._ear_clip_triangulate(pts_xy)
+            if triangles:
+                Color(*self._color(fill))
+                for a, b, c in triangles:
+                    x1, y1 = pts_xy[a]
+                    x2, y2 = pts_xy[b]
+                    x3, y3 = pts_xy[c]
+                    Triangle(points=(x1, y1, x2, y2, x3, y3))
+            else:
+                # Fallback fan only if triangulation unexpectedly fails.
+                cx = sum(p[0] for p in pts_xy) / len(pts_xy)
+                cy = sum(p[1] for p in pts_xy) / len(pts_xy)
+                Color(*self._color(fill))
+                for i in range(len(pts_xy)):
+                    x1, y1 = pts_xy[i]
+                    x2, y2 = pts_xy[(i + 1) % len(pts_xy)]
+                    Triangle(points=(cx, cy, x1, y1, x2, y2))
 
         if outline != "" and width > 0 and len(mapped) >= 4:
             Color(*self._color(outline))
             loop = mapped + mapped[:2]
             Line(points=loop, width=max(1.0, self.widget.sw(width)))
+
+    def _ear_clip_triangulate(self, pts: list[tuple[float, float]]) -> list[tuple[int, int, int]]:
+        n = len(pts)
+        if n < 3:
+            return []
+
+        def area2(poly: list[tuple[float, float]]) -> float:
+            s = 0.0
+            for i in range(len(poly)):
+                x1, y1 = poly[i]
+                x2, y2 = poly[(i + 1) % len(poly)]
+                s += (x1 * y2) - (x2 * y1)
+            return s
+
+        def cross(a: tuple[float, float], b: tuple[float, float], c: tuple[float, float]) -> float:
+            return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+        def point_in_tri(p: tuple[float, float], a: tuple[float, float], b: tuple[float, float], c: tuple[float, float]) -> bool:
+            c1 = cross(a, b, p)
+            c2 = cross(b, c, p)
+            c3 = cross(c, a, p)
+            has_neg = (c1 < 0) or (c2 < 0) or (c3 < 0)
+            has_pos = (c1 > 0) or (c2 > 0) or (c3 > 0)
+            return not (has_neg and has_pos)
+
+        indices = list(range(n))
+        is_ccw = area2(pts) > 0
+        triangles: list[tuple[int, int, int]] = []
+
+        guard = 0
+        while len(indices) > 3 and guard < n * n:
+            guard += 1
+            ear_found = False
+            m = len(indices)
+            for i in range(m):
+                i0 = indices[(i - 1) % m]
+                i1 = indices[i]
+                i2 = indices[(i + 1) % m]
+                a, b, c = pts[i0], pts[i1], pts[i2]
+
+                cr = cross(a, b, c)
+                if (is_ccw and cr <= 0) or ((not is_ccw) and cr >= 0):
+                    continue
+
+                blocked = False
+                for j in indices:
+                    if j in (i0, i1, i2):
+                        continue
+                    if point_in_tri(pts[j], a, b, c):
+                        blocked = True
+                        break
+                if blocked:
+                    continue
+
+                triangles.append((i0, i1, i2))
+                del indices[i]
+                ear_found = True
+                break
+
+            if not ear_found:
+                return []
+
+        if len(indices) == 3:
+            triangles.append((indices[0], indices[1], indices[2]))
+        return triangles
 
     def create_line(self, *coords: float, **kwargs: Any) -> None:
         fill = kwargs.get("fill", "#000000")
@@ -190,7 +273,8 @@ class GameProxy:
 class AndroidSkateGame(Widget):
     WIDTH = cfg.WIDTH
     HEIGHT = cfg.HEIGHT
-    GROUND_Y = cfg.GROUND_Y
+    # Slightly lower floor on Android so road reads larger on phone screens.
+    GROUND_Y = cfg.GROUND_Y - 24
     PLAYER_X = cfg.PLAYER_X
     PLAYER_W = cfg.PLAYER_W
     PLAYER_H = cfg.PLAYER_H
@@ -199,7 +283,14 @@ class AndroidSkateGame(Widget):
     BASE_SCROLL_SPEED = cfg.BASE_SCROLL_SPEED
     MIN_SCROLL_SPEED = cfg.MIN_SCROLL_SPEED
     MAX_SCROLL_SPEED = cfg.MAX_SCROLL_SPEED
+    SLOW_ACCEL = cfg.SLOW_ACCEL
+    FAST_ACCEL = cfg.FAST_ACCEL
     RETURN_ACCEL = cfg.RETURN_ACCEL
+    OBSTACLE_MIN_GAP = cfg.OBSTACLE_MIN_GAP
+    OBSTACLE_MAX_GAP = cfg.OBSTACLE_MAX_GAP
+    KICKFLIP_RATE = cfg.KICKFLIP_RATE
+    TURN180_RATE = cfg.TURN180_RATE
+    BACKFLIP_RATE = cfg.BACKFLIP_RATE
     OBSTACLE_MIN_GAP = cfg.OBSTACLE_MIN_GAP
     OBSTACLE_MAX_GAP = cfg.OBSTACLE_MAX_GAP
     KICKFLIP_RATE = cfg.KICKFLIP_RATE
@@ -217,6 +308,8 @@ class AndroidSkateGame(Widget):
         self.sound_focus = 0
         self.volume_level = 2
         self.menu_hitboxes: list[dict[str, object]] = []
+        self.control_hitboxes: list[dict[str, object]] = []
+        self.active_touch_actions: dict[object, str] = {}
 
         self.running = True
         self.score = 0
@@ -239,6 +332,7 @@ class AndroidSkateGame(Widget):
         self.rider_yaw_remaining = 0.0
         self.rider_pitch_angle = 0.0
         self.rider_pitch_remaining = 0.0
+        self.air_trick_used = False
         self.air_kickflip_used = False
         self.air_turn180_used = False
         self.air_backflip_used = False
@@ -337,18 +431,50 @@ class AndroidSkateGame(Widget):
             self._menu_click(dx, dy)
             return True
 
-        dx = touch.x / max(1.0, self.width)
-        if dx < 0.34:
+        dx = touch.x * (self.WIDTH / max(1.0, self.width))
+        dy = (self.height - touch.y) * (self.HEIGHT / max(1.0, self.height))
+        for hit in self.control_hitboxes:
+            x1, y1, x2, y2 = hit["rect"]
+            if x1 <= dx <= x2 and y1 <= dy <= y2:
+                action = str(hit["action"])
+                self._press_action(action)
+                self.active_touch_actions[touch.uid] = action
+                return True
+
+        # Fallback touch zones if user taps outside button circles.
+        nx = touch.x / max(1.0, self.width)
+        if nx < 0.34:
             player.on_jump(self.proxy, None)
-        elif dx < 0.66:
+        elif nx < 0.66:
             player.on_down_press(self.proxy, None)
         else:
             player.on_right_press(self.proxy, None)
+            self.active_touch_actions[touch.uid] = "right"
         return True
 
-    def on_touch_up(self, _touch):
-        player.on_right_release(self.proxy, None)
+    def on_touch_up(self, touch):
+        action = self.active_touch_actions.pop(touch.uid, "")
+        if action:
+            self._release_action(action)
         return True
+
+    def _press_action(self, action: str) -> None:
+        if action == "left":
+            player.on_left_press(self.proxy, None)
+        elif action == "right":
+            player.on_right_press(self.proxy, None)
+        elif action == "up":
+            player.on_jump(self.proxy, None)
+        elif action == "down":
+            player.on_down_press(self.proxy, None)
+        elif action == "restart":
+            self._reset()
+
+    def _release_action(self, action: str) -> None:
+        if action == "left":
+            player.on_left_release(self.proxy, None)
+        elif action == "right":
+            player.on_right_release(self.proxy, None)
 
     def _menu_move(self, step: int) -> None:
         if self.menu_screen == "main":
@@ -428,6 +554,7 @@ class AndroidSkateGame(Widget):
         self.rider_yaw_remaining = 0.0
         self.rider_pitch_angle = 0.0
         self.rider_pitch_remaining = 0.0
+        self.air_trick_used = False
         self.air_kickflip_used = False
         self.air_turn180_used = False
         self.air_backflip_used = False
@@ -485,8 +612,95 @@ class AndroidSkateGame(Widget):
         return False
 
     def _draw_status_bar(self) -> None:
-        self.canvas_api.create_rectangle(0, self.HEIGHT - 28, self.WIDTH, self.HEIGHT, fill="#f2f7fb", width=0)
-        self.canvas_api.create_text(12, self.HEIGHT - 8, text=f"Score: {self.score}", fill="#23313f", font=("Segoe UI", 12, "bold"), anchor="nw")
+        bar_h = 34
+        self.canvas_api.create_rectangle(0, self.HEIGHT - bar_h, self.WIDTH, self.HEIGHT, fill="#f2f7fb", width=0)
+        self.canvas_api.create_line(0, self.HEIGHT - bar_h, self.WIDTH, self.HEIGHT - bar_h, fill="#cfd7df", width=1)
+        self.canvas_api.create_text(
+            self.WIDTH * 0.5,
+            self.HEIGHT - (bar_h * 0.5),
+            text=f"Score: {self.score}",
+            fill="#1f2f3f",
+            font=("Segoe UI", 15, "bold"),
+            anchor="center",
+        )
+
+    def _draw_touch_controls(self) -> None:
+        # Mobile controls (visual + functional hitboxes).
+        self.control_hitboxes = []
+        base_y = self.HEIGHT - 128
+
+        # Left side: smaller steering buttons (left/right).
+        l_size = 56
+        l_gap = 14
+        lx1 = 20
+        lx2 = lx1 + l_size + l_gap
+        for bx, label, action in ((lx1, "Left", "left"), (lx2, "Right", "right")):
+            self.canvas_api.create_oval(bx, base_y, bx + l_size, base_y + l_size, fill="#eaf0f7", outline="#879cb0", width=2)
+            self.canvas_api.create_text(
+                bx + l_size * 0.5,
+                base_y + l_size * 0.52,
+                text=label,
+                fill="#33485e",
+                font=("Segoe UI", 11, "bold"),
+                anchor="center",
+            )
+            self.control_hitboxes.append({"rect": (bx, base_y, bx + l_size, base_y + l_size), "action": action})
+
+        # Right side: up/down plus R.
+        r_size = 62
+        rx = self.WIDTH - 20 - r_size
+        up_y = base_y - 6
+        dn_y = up_y + r_size + 2
+        self.canvas_api.create_oval(rx, up_y, rx + r_size, up_y + r_size, fill="#eaf0f7", outline="#879cb0", width=2)
+        self.canvas_api.create_text(
+            rx + r_size * 0.5,
+            up_y + r_size * 0.52,
+            text="Up",
+            fill="#33485e",
+            font=("Segoe UI", 13, "bold"),
+            anchor="center",
+        )
+        self.control_hitboxes.append({"rect": (rx, up_y, rx + r_size, up_y + r_size), "action": "up"})
+        self.canvas_api.create_oval(rx, dn_y, rx + r_size, dn_y + r_size, fill="#eaf0f7", outline="#879cb0", width=2)
+        self.canvas_api.create_text(
+            rx + r_size * 0.5,
+            dn_y + r_size * 0.52,
+            text="Down",
+            fill="#33485e",
+            font=("Segoe UI", 11, "bold"),
+            anchor="center",
+        )
+        self.control_hitboxes.append({"rect": (rx, dn_y, rx + r_size, dn_y + r_size), "action": "down"})
+
+        rr_x1 = rx
+        rr_y1 = up_y - 70
+        self.canvas_api.create_oval(rr_x1, rr_y1, rr_x1 + r_size, rr_y1 + r_size, fill="#f5e9e9", outline="#b68f8f", width=2)
+        self.canvas_api.create_text(
+            rr_x1 + r_size * 0.5,
+            rr_y1 + r_size * 0.52,
+            text="R",
+            fill="#6a3f3f",
+            font=("Segoe UI", 18, "bold"),
+            anchor="center",
+        )
+        self.control_hitboxes.append({"rect": (rr_x1, rr_y1, rr_x1 + r_size, rr_y1 + r_size), "action": "restart"})
+
+    def _draw_road_cleanup(self) -> None:
+        # Remove dark asphalt blobs from shared desktop render for cleaner mobile look.
+        self.canvas_api.create_rectangle(0, self.GROUND_Y + 8, self.WIDTH, self.HEIGHT - 34, fill="#40464d", width=0)
+        self.canvas_api.create_rectangle(0, self.GROUND_Y, self.WIDTH, self.GROUND_Y + 7, fill="#596269", width=0)
+        self.canvas_api.create_rectangle(0, self.GROUND_Y + 36, self.WIDTH, self.GROUND_Y + 44, fill="#2f353a", width=0)
+        dash_x = -self.road_offset
+        while dash_x < self.WIDTH + 50:
+            self.canvas_api.create_rectangle(
+                dash_x,
+                self.GROUND_Y + 20,
+                dash_x + 42,
+                self.GROUND_Y + 26,
+                fill="#ddd6a8",
+                width=0,
+            )
+            dash_x += 88
 
     def _tick(self, _dt: float) -> None:
         now = time.perf_counter()
@@ -510,10 +724,13 @@ class AndroidSkateGame(Widget):
         self.canvas_api.delete("all")
         with self.canvas:
             render.draw_background(self.proxy)
+            self._draw_road_cleanup()
             render.draw_obstacles(self.proxy)
             render.draw_player(self.proxy)
             render.draw_hud(self.proxy)
             self._draw_status_bar()
+            if not self.menu_open:
+                self._draw_touch_controls()
             if self.menu_open:
                 render.draw_menu(self.proxy)
             else:

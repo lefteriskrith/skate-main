@@ -370,6 +370,16 @@ def draw_hud(game) -> None:
         anchor="n",
     )
 
+    if game.trick_label:
+        game.canvas.create_text(
+            18,
+            40,
+            text=f"Trick: {game.trick_label}",
+            fill="#2c4d6a",
+            font=("Segoe UI", 11, "bold"),
+            anchor="nw",
+        )
+
     if not game.running:
         game.canvas.create_rectangle(220, 160, 740, 350, fill="#ffffff", outline="#9fb2c8", width=3)
         game.canvas.create_text(480, 215, text="You crashed!", fill="#243444", font=("Segoe UI", 28, "bold"))
@@ -458,12 +468,12 @@ def draw_menu(game) -> None:
     game.canvas.create_text(480, 152, text="Tricks", fill="#1d2a38", font=("Segoe UI", 22, "bold"))
     trick_lines = [
         "Up: Jump (+1)",
-        "Down in air: Kickflip (+5)",
         "Right in air: 180 Turn (+5)",
+        "Down in air: Kickflip (+5)",
         "Down + Right in one jump: 360 Flip (+10 total)",
-        "Hold Left on ground: Souza",
-        "Hold Right on ground: Front Souza",
-        "Souza score: +1 every 1.5 sec",
+        "Hold Left on ground: Manual",
+        "Hold Right on ground: Nose Manual",
+        "Manual score: +1 every 1.5 sec",
     ]
     ty = 198
     for line in trick_lines:
