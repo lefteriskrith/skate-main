@@ -92,6 +92,7 @@ class SkateGame:
         self.air_turn180_used = False
         self.air_backflip_used = False
         self.trick_label = ""
+        self.trick_label_timer = 0.0
         self.manual_score_timer = 0.0
 
         # Ground input flags (manual stance).
@@ -281,6 +282,7 @@ class SkateGame:
         self.air_turn180_used = False
         self.air_backflip_used = False
         self.trick_label = ""
+        self.trick_label_timer = 0.0
         self.manual_score_timer = 0.0
 
         self.left_pressed = False
@@ -372,6 +374,11 @@ class SkateGame:
             self._update_background_motion(dt)
             if self._check_collision():
                 self.running = False
+
+        if self.trick_label_timer > 0:
+            self.trick_label_timer = max(0.0, self.trick_label_timer - dt)
+            if self.trick_label_timer == 0.0:
+                self.trick_label = ""
 
         # Refresh text status even after crash.
         self.status.set(f"Score: {self.score}")

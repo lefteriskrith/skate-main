@@ -467,7 +467,7 @@ def draw_menu(game) -> None:
     # Tricks screen.
     game.canvas.create_text(480, 152, text="Tricks", fill="#1d2a38", font=("Segoe UI", 22, "bold"))
     trick_lines = [
-        "Up: Jump (+1)",
+        "Up: Jump/Ollie (+1)",
         "Right in air: 180 Turn (+5)",
         "Down in air: Kickflip (+5)",
         "Down + Right in one jump: 360 Flip (+10 total)",

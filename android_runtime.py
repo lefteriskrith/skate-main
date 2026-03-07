@@ -21,7 +21,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from game import config as cfg  # noqa: E402
-from game import obstacles, player, render  # noqa: E402
+from game import music, obstacles, player, render  # noqa: E402
 
 
 def approach(value: float, target: float, amount: float) -> float:
@@ -351,6 +351,7 @@ class AndroidSkateGame(Widget):
         self.air_turn180_used = False
         self.air_backflip_used = False
         self.trick_label = ""
+        self.trick_label_timer = 0.0
         self.manual_score_timer = 0.0
 
         self.left_pressed = False
@@ -362,6 +363,9 @@ class AndroidSkateGame(Widget):
 
         self.obstacles: list[dict[str, float | str | int]] = []
         self.next_obstacle_x = self.WIDTH + 180
+        self.music = music.MusicPlayer()
+        self.music.set_volume(self.volume_level)
+        self.music.start()
 
         self.canvas_api = CanvasAdapter(self)
         self.proxy = GameProxy(self)
@@ -391,8 +395,20 @@ class AndroidSkateGame(Widget):
     def _keyboard_closed(self):
         self.keyboard = None
 
-    def _on_key_down(self, _keyboard, keycode, _text, _mods):
-        key = keycode[1]
+    def _extract_key_name(self, keycode: Any, codepoint: Any = "") -> str:
+        """Normalize Kivy key callback data to a stable lowercase name."""
+        if isinstance(keycode, (list, tuple)) and len(keycode) > 1:
+            return str(keycode[1]).lower()
+        if isinstance(codepoint, str) and codepoint:
+            if codepoint == "\r":
+                return "enter"
+            return codepoint.lower()
+        if isinstance(keycode, str):
+            return keycode.lower()
+        return str(keycode).lower()
+
+    def _on_key_down(self, _window, keycode, _scancode=None, codepoint="", _mods=None):
+        key = self._extract_key_name(keycode, codepoint)
         if key == "escape":
             self.menu_open = not self.menu_open
             if self.menu_open:
@@ -426,8 +442,8 @@ class AndroidSkateGame(Widget):
             self._reset()
         return True
 
-    def _on_key_up(self, _keyboard, keycode):
-        key = keycode[1]
+    def _on_key_up(self, _window, keycode, *_args):
+        key = self._extract_key_name(keycode)
         if key == "left":
             player.on_left_release(self.proxy, None)
         elif key == "right":
@@ -523,6 +539,7 @@ class AndroidSkateGame(Widget):
         if self.menu_screen != "sound":
             return
         self.volume_level = int(max(0, min(3, self.volume_level + delta)))
+        self.music.set_volume(self.volume_level)
 
     def _menu_click(self, x: float, y: float) -> None:
         for hit in self.menu_hitboxes:
@@ -574,6 +591,7 @@ class AndroidSkateGame(Widget):
         self.air_turn180_used = False
         self.air_backflip_used = False
         self.trick_label = ""
+        self.trick_label_timer = 0.0
         self.manual_score_timer = 0.0
 
         self.left_pressed = False
@@ -753,6 +771,11 @@ class AndroidSkateGame(Widget):
             if self._check_collision():
                 self.running = False
 
+        if self.trick_label_timer > 0:
+            self.trick_label_timer = max(0.0, self.trick_label_timer - dt)
+            if self.trick_label_timer == 0.0:
+                self.trick_label = ""
+
         self.canvas_api.delete("all")
         with self.canvas:
             render.draw_background(self.proxy)
@@ -773,6 +796,11 @@ class SkateRushAndroidApp(App):
     def build(self):
         self.title = "Skate Rush"
         return AndroidSkateGame()
+
+    def on_stop(self):
+        root = self.root
+        if root is not None and hasattr(root, "music"):
+            root.music.stop()
 
 
 if __name__ == "__main__":
